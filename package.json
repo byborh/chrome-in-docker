@@ -2,11 +2,18 @@
   "name": "chrome-in-docker",
   "version": "1.0.0",
   "description": "Ce `Dockerfile` crée une **image Docker basée sur Ubuntu 20.04**, capable de **lancer Google Chrome** de manière autonome, par exemple pour faire du **web scraping**, des **tests end-to-end**, ou du **rendering headless**.",
-  "main": "index.js",
+  "main": "src/app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node src/app.js" 
   },
-  "keywords": [],
+  "dependencies": {
+    "puppeteer": "^24.10.0"
+  },
+  "keywords": [
+    "scrapping",
+    "headless",
+    "puppeteer"
+  ],
   "author": "",
   "license": "ISC"
 }
