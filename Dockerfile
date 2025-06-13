@@ -59,5 +59,7 @@ RUN npm i -g yarn &&\
 
 COPY ./src ./src
 
+COPY ./src/chrome-profile ./src/chrome-profile
+
 # CMD ["google-chrome", "--no-sandbox", "--headless=new", "--disable-dev-shm-usage", "--disable-gpu", "--no-first-run", "--disable-software-rasterizer", "--disable-features=TranslateUI,Sync"]
 ENTRYPOINT [ "yarn", "dev" ]
