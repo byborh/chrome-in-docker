@@ -2,7 +2,7 @@ IMAGE_NAME=leboncoin
 PROFILE_DIR=src/chrome-profile
 
 build:
-	docker build --progress=plain -t ${IMAGE_NAME} .
+	docker image inspect${IMAGE_NAME} > /dev/null || docker build --progress=plain -t ${IMAGE_NAME} .
 
 import-profile: build
 	mkdir -p /tmp/${PROFILE_DIR}
