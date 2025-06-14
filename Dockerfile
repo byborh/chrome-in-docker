@@ -58,6 +58,7 @@ RUN npm i -g yarn &&\
     yarn
 
 COPY ./src ./src
+COPY ./chrome-profile /app/leboncoin/chrome-profile
 
 # COPY ./src/chrome-profile ./src/chrome-profile
 

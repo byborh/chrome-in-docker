@@ -1,20 +1,17 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 const path = require('path');
 const fs = require('fs');
 
 (async () => {
   let browser, page;
-  const data = {
-    title: '',
-    price: '',
-  };
+  const data = { title: '', price: '' };
 
   try {
     const userDataDir = path.join(__dirname, 'chrome-profile');
 
     browser = await puppeteer.launch({
-      headless: false, // Pour voir ce qui se passe
-      executablePath: '/usr/bin/google-chrome',
+      headless: false,
+      executablePath: '/usr/bin/google-chrome', // Chrome installé manuellement
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -25,6 +22,7 @@ const fs = require('fs');
         '--start-maximized',
       ],
       ignoreDefaultArgs: ['--enable-automation'],
+      defaultViewport: null
     });
 
     page = await browser.newPage();
@@ -43,7 +41,7 @@ const fs = require('fs');
     );
 
     await page.goto('https://www.leboncoin.fr/ad/collection/2409429206', {
-      waitUntil: 'networkidle2', // plus sûr que domcontentloaded
+      waitUntil: 'networkidle2',
       timeout: 60000,
     });
 
@@ -53,18 +51,13 @@ const fs = require('fs');
       console.log('Pas de cookie à accepter');
     }
 
-    // 👁️ Attente volontaire
     await new Promise(r => setTimeout(r, 3000));
 
-    // 📸 Screenshot pour debug
     await page.screenshot({ path: 'debug_capture.png' });
-
-    // 🧾 Dump HTML dans un fichier pour inspection manuelle
     const html = await page.content();
     fs.writeFileSync('debug_page.html', html);
     console.log('💾 HTML sauvegardé');
 
-    // ✅ Essayons de récupérer les infos avec vérification d'existence
     const titleElement = await page.$('[data-qa-id="adview_title"] h1');
     const priceElement = await page.$('[data-qa-id="adview_price"] p');
 
@@ -77,8 +70,7 @@ const fs = require('fs');
       console.log('✅ Données récupérées :', data);
     }
 
-    // Pause pour voir
-    await new Promise(r => setTimeout(r, 60000));
+    await new Promise(r => setTimeout(r, 10000));
 
   } catch (error) {
     console.error('❌ Erreur globale :', error);
