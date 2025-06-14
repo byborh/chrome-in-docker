@@ -4,16 +4,21 @@
   "description": "Ce `Dockerfile` crée une **image Docker basée sur Ubuntu 20.04**, capable de **lancer Google Chrome** de manière autonome, par exemple pour faire du **web scraping**, des **tests end-to-end**, ou du **rendering headless**.",
   "main": "src/app.js",
   "scripts": {
-    "dev": "node src/app.js" 
+    "dev": "node src/app.js"
   },
   "dependencies": {
-    "puppeteer": "^24.10.0"
+    "puppeteer": "^24.10.0",
+    "puppeteer-extra": "^3.3.4",
+    "puppeteer-extra-plugin-stealth": "^2.11.1",
+    "puppeteer-extra-plugin-anonymize-ua": "^2.4.6"
   },
   "keywords": [
-    "scrapping",
+    "scraping",
     "headless",
-    "puppeteer"
+    "puppeteer",
+    "stealth",
+    "automation"
   ],
-  "author": "",
-  "license": "ISC"
+  "author": "Bruce Wayne",
+  "license": "MIT"
 }
