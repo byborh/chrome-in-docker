@@ -71,13 +71,13 @@ const cookies = [
     await page.setCookie(...cookies);
     console.log('🍪 Cookies injectés');
 
-    const url = 'https://www.leboncoin.fr/'; // <-- remplace par l’URL spécifique de ton annonce
+    const url = 'https://www.leboncoin.fr/ad/collection/2409429206'; // 
     console.log(`🚀 Navigation vers ${url}`);
     await page.goto(url, { waitUntil: 'domcontentloaded' });
 
     console.log('⏳ Attente des sélecteurs principaux...');
-    await page.waitForSelector('[data-qa-id="adview_title"] h1', { timeout: 10000 });
-    await page.waitForSelector('[data-qa-id="adview_price"] p', { timeout: 10000 });
+    await page.waitForSelector('[data-qa-id="adview_title"] h1', { timeout: 30000 });
+    await page.waitForSelector('[data-qa-id="adview_price"] p', { timeout: 30000 });
     console.log('✅ Éléments détectés');
 
     // 1) Récupération classique avec page.content()

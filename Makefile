@@ -1,21 +1,22 @@
 IMAGE_NAME=leboncoin
 
 build:
-	@echo "Building..."
-	@docker image inspect ${IMAGE_NAME} > /dev/null || docker build --progress=plain -t ${IMAGE_NAME} .
+	@echo "🔧 Building Docker image..."
+	@docker build --progress=plain -t ${IMAGE_NAME} .
 
 run:
-	@echo "Running..."
-	@xhost +local:root
+	@echo "🚀 Running container in headless mode..."
 	@docker run -it --rm \
-		-e DISPLAY=$$DISPLAY \
-		-v /tmp/.X11-unix:/tmp/.X11-unix \
+		-v $(CURDIR)/src:/app/leboncoin/src \
+		-v $(CURDIR)/chrome-profile:/app/leboncoin/chrome-profile \
+		--name ${IMAGE_NAME} \
 		${IMAGE_NAME}
-	@xhost -local:root
 
 clean:
-	@echo "Cleaning..."
+	@echo "🧹 Cleaning Docker containers..."
 	@docker container stop ${IMAGE_NAME} || true
 	@docker container rm ${IMAGE_NAME} || true
 
-default: build run
+rebuild: clean build
+
+dev: build run
