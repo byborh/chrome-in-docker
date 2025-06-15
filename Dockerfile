@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     libatk1.0-0 \
     libcups2 \
     libdbus-1-3 \
+    libxext6 \
     dbus \
     dbus-x11 \
     libgdk-pixbuf2.0-0 \
@@ -57,8 +58,8 @@ COPY ./package.json ./package.json
 RUN npm i -g yarn &&\
     yarn
 
-COPY ./src ./src
-COPY ./chrome-profile /app/leboncoin/chrome-profile
+# COPY ./src ./src
+# COPY ./chrome-profile /app/leboncoin/chrome-profile
 
 # COPY ./src/chrome-profile ./src/chrome-profile
 

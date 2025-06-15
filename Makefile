@@ -8,7 +8,7 @@ run:
 	@echo "Running..."
 	@xhost +local:root
 	@docker run -it --rm \
-		-e DISPLAY=${DISPLAY} \
+		-e DISPLAY=$$DISPLAY \
 		-v /tmp/.X11-unix:/tmp/.X11-unix \
 		${IMAGE_NAME}
 	@xhost -local:root
