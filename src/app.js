@@ -111,8 +111,10 @@ async function toggleNetworkSlow(page, slow) {
     });
 
     await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
     );
+    await page.setViewport({ width: 1366, height: 768 });
+    await page.setJavaScriptEnabled(true);
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'fr-FR,fr;q=0.9'
     });
@@ -120,10 +122,69 @@ async function toggleNetworkSlow(page, slow) {
     await page.setCookie(...cookies);
     console.log('🌐 Page prête, cookies injectés');
 
+    // Aller dans d'autres page web avant de faire la finalité du projet !
+    const links = [
+      "https://tiktok.com",
+      "https://facebook.com",
+      "https://instagram.com",
+      "https://youtube.com"
+    ];
+
+    for (let i = 0; i < links.length; i++) {
+      const url = links[i];
+      console.log(`🔗 Visite de la page : ${url}`);
+
+      await page.goto(url, { waitUntil: 'networkidle2' });
+
+      // Attente aléatoire pour simuler le comportement humain
+      await new Promise(r => setTimeout(r, 2000 + Math.random() * 2251));
+
+      // Tente de cliquer sur le bouton 'Accepter les cookies'
+      // Essayer de cliquer sur un bouton cookies via evaluate()
+      try {
+        const found = await page.evaluate(() => {
+          const buttons = Array.from(document.querySelectorAll('button'));
+          const keywords = ['accepter', 'autoriser', 'cookies', 'ok', 'accept all'];
+
+          for (const btn of buttons) {
+            const text = btn.innerText.toLowerCase();
+            if (keywords.some(k => text.includes(k))) {
+              btn.click();
+              return true;
+            }
+          }
+          return false;
+        });
+
+        if (found) {
+          console.log("✅ Bouton cookies cliqué.");
+          await new Promise(r => setTimeout(r, 1000 + Math.random() * 990));
+        } else {
+          console.log("❌ Aucun bouton cookies trouvé.");
+        }
+      } catch (e) {
+        console.error("⚠️ Erreur lors de la tentative de clic sur le bouton cookies :", e.message);
+      }
+
+
+      // Simuler des mouvements de souris
+      const moveMouse = async () => {
+        await page.mouse.move(
+          100 + Math.random() * 100,
+          100 + Math.random() * 100
+        );
+        await new Promise(r => setTimeout(r, 500 + Math.random() * 501));
+      };
+
+      await moveMouse();
+      await moveMouse();
+    }
+
     const url = 'https://www.leboncoin.fr/ad/collection/2409429206';
 
     // Étape 1 : page d’accueil
     await page.goto('https://www.leboncoin.fr/', { waitUntil: 'networkidle2' });
+    console.log('Visite de la page leboncoin.fr')
     await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
 
     // Étape 2 : ralentir le réseau
@@ -131,6 +192,23 @@ async function toggleNetworkSlow(page, slow) {
     await toggleNetworkSlow(page, true);
 
     await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(async () => {
+
+    // défiler la page pour charger toutes les annonces
+      await new Promise(resolve => {
+
+          let totalHeight = 0;
+          const distance = 100;
+          const timer = setInterval(() => {
+            window.scrollBy(0, distance);
+            totalHeight += distance;
+            if (totalHeight >= document.body.scrollHeight) {
+              clearInterval(timer);
+              resolve();
+            }
+          }, 200);
+        });
+      });
 
     // Réseau normal après navigation
     console.log('✅ Rétablissement réseau après navigation...');
@@ -138,8 +216,8 @@ async function toggleNetworkSlow(page, slow) {
     await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
 
     // Simule mouvement souris
-    await page.mouse.move(100, 100);
-    await page.mouse.move(300, 200);
+    await page.mouse.move(193, 109);
+    await page.mouse.move(502, 207);
 
     const htmlAfterLoad = await page.content();
     fs.writeFileSync(paths.html, htmlAfterLoad);
