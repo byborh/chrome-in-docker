@@ -8,7 +8,7 @@ run:
 	@echo "🚀 Running container in headless mode..."
 	@docker run -it --rm \
 		-v $(CURDIR)/src:/app/leboncoin/src \
-		-v $(CURDIR)/chrome-profile:/app/leboncoin/chrome-profile \
+		-v $(CURDIR)/chrome-profile:/app/chrome-profile \
 		--name ${IMAGE_NAME} \
 		${IMAGE_NAME}
 
@@ -19,4 +19,10 @@ clean:
 
 rebuild: clean build
 
+
 dev: build run
+
+delete-files:
+	rm ./src/index.html
+	rm ./src/error.log
+	rm ./src/error_page.html
