@@ -23,6 +23,8 @@ rebuild: clean build
 dev: build run
 
 delete-files:
-	rm ./src/index.html
-	rm ./src/error.log
-	rm ./src/error_page.html
+	rm ./src/index.html || true
+	rm ./src/error.log || true
+	rm ./src/error_page.html || trur
+	rm ./src/data.json || true
+	
