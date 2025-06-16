@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     git \
     ca-certificates \
+    tor \
     --no-install-recommends
 
 # 🧊 Installer Chrome
@@ -21,11 +22,18 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs && \
     npm install -g yarn
 
+# 🧅 Configurer Tor
+RUN echo "SOCKSPort 9050" >> /etc/tor/torrc && \
+    echo "Log notice stdout" >> /etc/tor/torrx && \
+    echo "ControlPort 9051" >> /etc/tir/torrc && \
+    echo "CookieAuthentification 1" >> /etc/tor/torrc
+
+# Répertoire de travail
 WORKDIR /app/leboncoin
 
-# 📦 Installer les dépendances Node
+# 📦 Dépendances Node
 COPY ./package.json ./package.json
 RUN yarn
 
-# 💡 Le code sera monté dynamiquement
-CMD ["yarn", "dev"]
+# Le code sera monté au runtime
+CMD ["sh", "-c", "service tor start && sleep 5 yarn dev"]

@@ -1,76 +1,267 @@
-const puppeteer = require('puppeteer-core');
+require('dotenv').config();
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
 const path = require('path');
 const fs = require('fs');
+const torRequest = require('tor-request');
 
-// 🍪 Cookies LBC
-const cookies = [
-  {
-    name: 'AMCV_B5751C805BA3539E0A495EAF%40AdobeOrg',
-    value: 'MCMID|56204923349583790070210261807602860031',
-    domain: '.leboncoin.fr',
-    path: '/',
-    secure: true,
-    httpOnly: true,
-    sameSite: 'None',
-    expires: Date.now() + 365 * 24 * 60 * 60 * 1000
-  },
-  {
-    name: 'nlid',
-    value: 'a9ba2a7b-2682-4cd8-83c0-1b67881fefe1|7ae360',
-    domain: '.leboncoin.fr',
-    path: '/',
-    secure: true,
-    httpOnly: true,
-    sameSite: 'None',
-    expires: Date.now() + 365 * 24 * 60 * 60 * 1000
-  },
-  {
-    name: 'datadome',
-    value: 'KGKScLfj6izcGCw5rRPDpr5gkDEPkg2d9GskdiPqknhNYysE9r73T6kNZFztsmW2TnFON~KTUwfNuPCA0VUhsgU9_j1bycXHcdIqN2XKgYHVEa0kKjT4~JKYV3x~jBr4',
-    domain: '.leboncoin.fr',
-    path: '/',
-    secure: true,
-    httpOnly: true,
-    sameSite: 'None',
-    expires: Date.now() + 365 * 24 * 60 * 60 * 1000
-  }
-];
+// Configuration Tor
+torRequest.setTorAddress('localhost', 9050);
+const MY_NORMAL_IP = process.env.MY_IP || '';
 
-// 🔍 Détection captcha
+// 🔍 Détection captcha améliorée
 async function detectCaptcha(page) {
   return await page.evaluate(() => {
-    return !!document.querySelector('form[action*="datadome"]') ||
-           document.title.toLowerCase().includes('datadome') ||
-           document.body.innerText.toLowerCase().includes('captcha');
+    const hasDatadome = !!document.querySelector('form[action*="datadome"], iframe[src*="datadome"]');
+    const hasCaptchaText = document.body.innerText.toLowerCase().includes('captcha') || 
+                          document.title.toLowerCase().includes('captcha');
+    const isBlocked = document.body.innerText.includes('blocked') || 
+                     document.body.innerText.includes('denied');
+    return hasDatadome || hasCaptchaText || isBlocked;
   });
 }
 
-// 🐢 Ralentissement / rétablissement réseau
+// 🐢 Ralentissement réseau réaliste
 async function toggleNetworkSlow(page, slow) {
   const client = await page.target().createCDPSession();
   await client.send('Network.enable');
-  if (slow) {
-    await client.send('Network.emulateNetworkConditions', {
-      offline: false,
-      latency: 5000, // 5 sec de latence
-      downloadThroughput: 50 * 1024,
-      uploadThroughput: 50 * 1024,
+  await client.send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: slow ? 3000 + Math.floor(Math.random() * 4000) : 20 + Math.floor(Math.random() * 30),
+    downloadThroughput: slow ? (50 + Math.floor(Math.random() * 50)) * 1024 : 1024 * 1024,
+    uploadThroughput: slow ? (30 + Math.floor(Math.random() * 40)) * 1024 : 1024 * 1024,
+    connectionType: slow ? 'cellular3g' : 'wifi'
+  });
+}
+
+// 🔄 Rotation d'identité Tor
+// Nouvelle version sans tor-request
+async function renewTorIdentity() {
+  try {
+    // Envoie un signal SIGHUP à Tor pour demander un nouveau circuit
+    const { exec } = require('child_process');
+    await new Promise((resolve, reject) => {
+      exec('pkill -HUP tor', (error) => {
+        if (error) {
+          console.error('❌ Erreur rotation Tor:', error);
+          reject(false);
+        } else {
+          console.log('🔄 Nouvelle identité Tor demandée');
+          // Attendre que le nouveau circuit soit établi
+          setTimeout(resolve, 5000);
+        }
+      });
     });
-  } else {
-    await client.send('Network.emulateNetworkConditions', {
-      offline: false,
-      latency: 20,
-      downloadThroughput: 1024 * 1024,
-      uploadThroughput: 1024 * 1024,
-    });
+    return true;
+  } catch (e) {
+    console.error('❌ Erreur rotation Tor:', e);
+    return false;
   }
 }
+
+// 🌐 Vérification connexion Tor
+async function verifyTorConnection(page) {
+  try {
+    await page.goto('https://check.torproject.org', {waitUntil: 'networkidle2', timeout: 30000});
+    const isUsingTor = await page.evaluate(() => document.body.textContent.includes('Congratulations'));
+    
+    if (!isUsingTor) throw new Error('Not using Tor');
+    
+    // Vérification IP
+    await page.goto('https://api.ipify.org?format=json', {waitUntil: 'networkidle2'});
+    const currentIp = await page.evaluate(() => {
+      try {
+        return JSON.parse(document.body.textContent).ip;
+      } catch {
+        return 'unknown';
+      }
+    });
+
+    console.log(`🌐 IP actuelle via Tor: ${currentIp}`);
+    
+    if (MY_NORMAL_IP && currentIp === MY_NORMAL_IP) {
+      throw new Error('Tor ne fonctionne pas - IP normale détectée');
+    }
+
+    return true;
+  } catch (e) {
+    console.error('❌ Échec vérification Tor:', e.message);
+    throw e;
+  }
+}
+
+// 🖱️ Simulation comportement humain
+async function humanLikeInteraction(page) {
+  // Défilement aléatoire
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      let totalHeight = 0;
+      const distance = 100 + Math.floor(Math.random() * 50);
+      const timer = setInterval(() => {
+        const scrollHeight = document.body.scrollHeight;
+        window.scrollBy(0, distance);
+        totalHeight += distance;
+        
+        if (totalHeight >= scrollHeight || Math.random() > 0.8) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 100 + Math.floor(Math.random() * 200));
+    });
+  });
+  
+  // Mouvements souris réalistes
+  const viewport = page.viewport();
+  for (let i = 0; i < 5 + Math.floor(Math.random() * 5); i++) {
+    await page.mouse.move(
+      Math.floor(Math.random() * viewport.width),
+      Math.floor(Math.random() * viewport.height),
+      {steps: 10 + Math.floor(Math.random() * 10)}
+    );
+    await page.waitForTimeout(100 + Math.floor(Math.random() * 500));
+  }
+
+  // Clics aléatoires
+  if (Math.random() > 0.7) {
+    await page.mouse.click(
+      Math.floor(Math.random() * viewport.width),
+      Math.floor(Math.random() * viewport.height),
+      {delay: 100 + Math.floor(Math.random() * 200)}
+    );
+  }
+}
+
+// 🏠 Visite humaine d'une URL
+async function humanVisit(page, url) {
+  console.log(`🌍 Visite de ${url}...`);
+  await toggleNetworkSlow(page, Math.random() > 0.7);
+  await page.goto(url, {
+    waitUntil: 'networkidle2',
+    timeout: 30000,
+    referer: 'https://www.google.com/'
+  });
+
+  await humanLikeInteraction(page);
+  await handleCookies(page);
+  await page.waitForTimeout(2000 + Math.floor(Math.random() * 3000));
+  await toggleNetworkSlow(page, false);
+}
+
+//   Gestion des bannières cookies
+async function handleCookies(page) {
+  try {
+    const found = await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+      const keywords = ['accepter', 'autoriser', 'cookies', 'ok', 'accept all', 'continuer', 'agree', 'allow'];
+
+      for (const btn of buttons) {
+        const text = (btn.innerText || btn.textContent || '').toLowerCase();
+        if (keywords.some(k => text.includes(k)) && btn.offsetParent !== null) {
+          btn.click();
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (found) {
+      console.log('🍪 Bouton cookies accepté');
+      await page.waitForTimeout(1000 + Math.floor(Math.random() * 1000));
+    }
+  } catch (e) {
+    console.log('⚠️ Erreur gestion cookies:', e.message);
+  }
+}
+
+// 🛡️ Configuration anti-détection
+async function applyStealth(page) {
+  // User-Agent aléatoire
+  const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
+  ];
+  
+  const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+  await page.setUserAgent(randomUA);
+  
+  // Headers supplémentaires
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+    'Referer': 'https://www.google.com/',
+    'DNT': '1',
+    'Connection': 'keep-alive'
+  });
+
+  // Viewport aléatoire
+  const widths = [1366, 1440, 1536, 1600, 1920];
+  const heights = [768, 900, 960, 1024, 1080];
+  await page.setViewport({
+    width: widths[Math.floor(Math.random() * widths.length)],
+    height: heights[Math.floor(Math.random() * heights.length)],
+    deviceScaleFactor: 1,
+    hasTouch: false,
+    isLandscape: Math.random() > 0.8
+  });
+
+  // Scripts d'évasion
+  await page.evaluateOnNewDocument(() => {
+    // Masquer WebDriver
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    // Modifier les plugins
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    // Modifier les langues
+    Object.defineProperty(navigator, 'languages', { get: () => ['fr-FR', 'fr', 'en-US', 'en'] });
+    // Modifier la résolution d'écran
+    Object.defineProperty(screen, 'width', { get: () => window.innerWidth });
+    Object.defineProperty(screen, 'height', { get: () => window.innerHeight });
+  });
+}
+
+// 🚨 Gestion des CAPTCHA
+async function handleCaptcha(page) {
+  console.log('🔄 Tentative de contournement du CAPTCHA...');
+  
+  // 1. Changement d'identité Tor
+  await renewTorIdentity();
+  
+  // 2. Fermeture et réouverture du navigateur
+  await page.close();
+  const newPage = await browser.newPage();
+  await applyStealth(newPage);
+  
+  // 3. Attente prolongée
+  await newPage.waitForTimeout(10000 + Math.floor(Math.random() * 15000));
+  
+  // 4. Visites de pages intermédiaires
+  const decoyPages = [
+    'https://www.wikipedia.org',
+    'https://www.reddit.com',
+    'https://www.bbc.com',
+    'https://www.amazon.fr',
+    'https://www.youtube.com'
+  ];
+  
+  for (const url of decoyPages.slice(0, 2 + Math.floor(Math.random() * 2))) {
+    await humanVisit(newPage, url);
+  }
+  
+  return newPage;
+}
+
+// ==============================================
+// 🚀 EXÉCUTION PRINCIPALE
+// ==============================================
 
 (async () => {
   let browser, page;
   const data = { title: '', price: '', success: false };
 
-  const outputDir = __dirname;
+  // 📂 Configuration des chemins
+  const outputDir = path.join(__dirname);
   const paths = {
     html: path.join(outputDir, 'index.html'),
     raw: path.join(outputDir, 'page_raw.html'),
@@ -81,192 +272,132 @@ async function toggleNetworkSlow(page, slow) {
   };
 
   try {
+    // 🖥️ Lancement du navigateur
+    console.log('🚀 Lancement du navigateur avec configuration furtive...');
+    
     const userDataDir = path.join(__dirname, '..', 'chrome-profile');
-    console.log('🧠 Lancement navigateur furtif...');
-
     browser = await puppeteer.launch({
       headless: 'new',
       executablePath: '/usr/bin/google-chrome',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
+        '--proxy-server=socks5://127.0.0.1:9050',
         `--user-data-dir=${userDataDir}`,
         '--disable-blink-features=AutomationControlled',
         '--disable-infobars',
         '--window-size=1200,800',
-        '--start-maximized'
+        '--start-maximized',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process'
       ],
       ignoreDefaultArgs: ['--enable-automation'],
       defaultViewport: null
     });
 
     page = await browser.newPage();
+    await applyStealth(page);
 
-    // 🛠️ Anti-détection Puppeteer
-    await page.evaluateOnNewDocument(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => false });
-      window.navigator.chrome = { runtime: {} };
-      Object.defineProperty(navigator, 'languages', { get: () => ['fr-FR', 'fr'] });
-      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
-    });
+    // 🔌 Vérification Tor
+    await verifyTorConnection(page);
 
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
-    );
-    await page.setViewport({ width: 1366, height: 768 });
-    await page.setJavaScriptEnabled(true);
-    await page.setExtraHTTPHeaders({
-      'Accept-Language': 'fr-FR,fr;q=0.9'
-    });
-
-    await page.setCookie(...cookies);
-    console.log('🌐 Page prête, cookies injectés');
-
-    // Aller dans d'autres page web avant de faire la finalité du projet !
-    const links = [
-      "https://tiktok.com",
-      "https://facebook.com",
-      "https://instagram.com",
-      "https://youtube.com"
+    // 🌍 Visites préparatoires
+    const prepUrls = [
+      "https://www.wikipedia.org",
+      "https://www.reddit.com",
+      "https://www.amazon.fr",
+      "https://www.youtube.com"
     ];
 
-    for (let i = 0; i < links.length; i++) {
-      const url = links[i];
-      console.log(`🔗 Visite de la page : ${url}`);
+    for (const url of prepUrls) {
+      await humanVisit(page, url);
+      if (Math.random() > 0.6) await renewTorIdentity();
+    }
 
-      await page.goto(url, { waitUntil: 'networkidle2' });
+    // 🎯 Cible principale: Leboncoin
+    const targetUrl = 'https://www.leboncoin.fr/ad/collection/2409429206';
+    let retries = 3;
+    let success = false;
 
-      // Attente aléatoire pour simuler le comportement humain
-      await new Promise(r => setTimeout(r, 2000 + Math.random() * 2251));
-
-      // Tente de cliquer sur le bouton 'Accepter les cookies'
-      // Essayer de cliquer sur un bouton cookies via evaluate()
+    while (retries > 0 && !success) {
       try {
-        const found = await page.evaluate(() => {
-          const buttons = Array.from(document.querySelectorAll('button'));
-          const keywords = ['accepter', 'autoriser', 'cookies', 'ok', 'accept all'];
-
-          for (const btn of buttons) {
-            const text = btn.innerText.toLowerCase();
-            if (keywords.some(k => text.includes(k))) {
-              btn.click();
-              return true;
-            }
-          }
-          return false;
+        console.log(`🔎 Tentative ${4 - retries}/3 pour ${targetUrl}`);
+        
+        // Visite de la page d'accueil d'abord
+        await humanVisit(page, 'https://www.leboncoin.fr/');
+        
+        // Navigation vers la cible
+        await toggleNetworkSlow(page, true);
+        await page.goto(targetUrl, {
+          waitUntil: 'domcontentloaded',
+          timeout: 30000,
+          referer: 'https://www.leboncoin.fr/'
         });
+        await toggleNetworkSlow(page, false);
 
-        if (found) {
-          console.log("✅ Bouton cookies cliqué.");
-          await new Promise(r => setTimeout(r, 1000 + Math.random() * 990));
-        } else {
-          console.log("❌ Aucun bouton cookies trouvé.");
+        // Vérification CAPTCHA
+        if (await detectCaptcha(page)) {
+          console.log('🛑 CAPTCHA détecté!');
+          fs.writeFileSync(paths.captcha, await page.content());
+          page = await handleCaptcha(page);
+          retries--;
+          continue;
         }
-      } catch (e) {
-        console.error("⚠️ Erreur lors de la tentative de clic sur le bouton cookies :", e.message);
-      }
 
+        // Interaction humaine
+        await humanLikeInteraction(page);
 
-      // Simuler des mouvements de souris
-      const moveMouse = async () => {
-        await page.mouse.move(
-          100 + Math.random() * 100,
-          100 + Math.random() * 100
-        );
-        await new Promise(r => setTimeout(r, 500 + Math.random() * 501));
-      };
-
-      await moveMouse();
-      await moveMouse();
-    }
-
-    const url = 'https://www.leboncoin.fr/ad/collection/2409429206';
-
-    // Étape 1 : page d’accueil
-    await page.goto('https://www.leboncoin.fr/', { waitUntil: 'networkidle2' });
-    console.log('Visite de la page leboncoin.fr')
-    await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
-
-    // Étape 2 : ralentir le réseau
-    console.log('🐢 Ralentissement réseau avant navigation vers la page cible...');
-    await toggleNetworkSlow(page, true);
-
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
-    await page.evaluate(async () => {
-
-    // défiler la page pour charger toutes les annonces
-      await new Promise(resolve => {
-
-          let totalHeight = 0;
-          const distance = 100;
-          const timer = setInterval(() => {
-            window.scrollBy(0, distance);
-            totalHeight += distance;
-            if (totalHeight >= document.body.scrollHeight) {
-              clearInterval(timer);
-              resolve();
-            }
-          }, 200);
+        // Extraction des données
+        const rawData = await page.evaluate(() => {
+          const title = document.querySelector('[data-qa-id="adview_title"] h1')?.innerText?.trim() || '';
+          const price = document.querySelector('[data-qa-id="adview_price"] p')?.innerText?.trim() || '';
+          const rawHtml = document.documentElement.outerHTML;
+          return { title, price, rawHtml };
         });
-      });
 
-    // Réseau normal après navigation
-    console.log('✅ Rétablissement réseau après navigation...');
-    await toggleNetworkSlow(page, false);
-    await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
+        if (!rawData.title || !rawData.price) {
+          throw new Error('Données non trouvées');
+        }
 
-    // Simule mouvement souris
-    await page.mouse.move(193, 109);
-    await page.mouse.move(502, 207);
+        data.title = rawData.title;
+        data.price = rawData.price;
+        data.success = true;
+        success = true;
 
-    const htmlAfterLoad = await page.content();
-    fs.writeFileSync(paths.html, htmlAfterLoad);
-    console.log('💾 Page chargée sauvegardée dans index.html');
+        console.log('✅ Données extraites avec succès:', data);
+        fs.writeFileSync(paths.raw, rawData.rawHtml);
+        fs.writeFileSync(paths.html, await page.content());
 
-    // Détection captcha
-    const hasCaptcha = await detectCaptcha(page);
-    if (hasCaptcha) {
-      console.warn('🛑 Captcha détecté !');
-      fs.writeFileSync(paths.captcha, htmlAfterLoad);
-      fs.writeFileSync(paths.dataJson, JSON.stringify(data, null, 2));
-      return;
+      } catch (err) {
+        console.error(`❌ Erreur (${retries} tentatives restantes):`, err.message);
+        fs.writeFileSync(paths.error, await page?.content() || err.stack);
+        
+        if (retries > 1) {
+          await renewTorIdentity();
+          await page.waitForTimeout(5000 + Math.floor(Math.random() * 10000));
+        }
+        retries--;
+      }
     }
 
-    // Attente sélecteurs
-    console.log('🔍 Attente des données...');
-    try {
-      await page.waitForSelector('[data-qa-id="adview_title"] h1', { timeout: 30000 });
-      await page.waitForSelector('[data-qa-id="adview_price"] p', { timeout: 30000 });
-    } catch (e) {
-      console.warn('⏱️ Timeout des sélecteurs.');
-      fs.writeFileSync(paths.error, await page.content());
-      fs.writeFileSync(paths.dataJson, JSON.stringify(data, null, 2));
-      return;
+    if (!success) {
+      console.log('💥 Échec après 3 tentatives');
+      data.error = 'Échec après plusieurs tentatives';
     }
 
-    // Extraction
-    const rawData = await page.evaluate(() => {
-      const title = document.querySelector('[data-qa-id="adview_title"] h1')?.innerText || '';
-      const price = document.querySelector('[data-qa-id="adview_price"] p')?.innerText || '';
-      const rawHtml = document.documentElement.outerHTML;
-      return { title, price, rawHtml };
-    });
-
-    data.title = rawData.title;
-    data.price = rawData.price;
-    data.success = true;
-
-    console.log('✅ Données extraites :', data);
-    fs.writeFileSync(paths.raw, rawData.rawHtml);
     fs.writeFileSync(paths.dataJson, JSON.stringify(data, null, 2));
 
-    await new Promise(r => setTimeout(r, 2000));
   } catch (err) {
-    console.error('❌ Erreur générale :', err.message);
+    console.error('💣 ERREUR CRITIQUE:', err);
     fs.writeFileSync(paths.log, err.stack || err.message);
+    fs.writeFileSync(paths.dataJson, JSON.stringify({
+      success: false,
+      error: err.message
+    }, null, 2));
   } finally {
+    // 🧹 Nettoyage
     if (page && !page.isClosed()) await page.close();
     if (browser) await browser.close();
-    console.log('🧹 Nettoyage terminé.');
+    console.log('🔚 Navigateur fermé');
   }
 })();

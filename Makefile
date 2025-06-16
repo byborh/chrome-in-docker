@@ -5,7 +5,7 @@ build:
 	@docker build --progress=plain -t ${IMAGE_NAME} .
 
 run:
-	@echo "🚀 Running container in headless mode..."
+	@echo "🚀 Running container with volumes..."
 	@docker run -it --rm \
 		-v $(CURDIR)/src:/app/leboncoin/src \
 		-v $(CURDIR)/chrome-profile:/app/chrome-profile \
@@ -19,12 +19,10 @@ clean:
 
 rebuild: clean build
 
-
 dev: build run
 
 delete-files:
 	rm ./src/index.html || true
 	rm ./src/error.log || true
-	rm ./src/error_page.html || trur
+	rm ./src/error_page.html || true
 	rm ./src/data.json || true
-	
