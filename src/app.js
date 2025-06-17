@@ -5,6 +5,10 @@ import path from 'path';
 import fs from 'fs';
 import torRequest from 'tor-request';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 puppeteer.use(StealthPlugin());
 
@@ -44,31 +48,58 @@ async function toggleNetworkSlow(page, slow) {
 }
 
 // 🔄 Rotation d'identité Tor
-// Nouvelle version sans tor-request
 async function renewTorIdentity() {
+  const MAX_ATTEMPTS = 3;
+  const DELAY_BETWEEN_ATTEMPTS = 3000;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      console.log(`🔄 Tentative ${attempt}/${MAX_ATTEMPTS} de rotation d'identité Tor...`);
+
+      // 1. Envoi du signal SIGHUP
+      const { stderr } = await execAsync('pkill -HUP tor || true'); // "|| true" ignore les erreurs si tor n'est pas trouvé
+
+      // 2. Vérification des erreurs
+      if (stderr && !stderr.includes("no process found")) {
+        throw new Error(`Erreur Tor: ${stderr}`);
+      }
+
+      // 3. Attente de stabilisation
+      console.log('⏳ Attente de la nouvelle identité...');
+      await new Promise(resolve => setTimeout(resolve, 5000 + Math.random() * 3000)); // Délai aléatoire
+
+      // 4. Vérification optionnelle (décommente si tu as torify/torsocks)
+      // await verifyNewIP(); 
+
+      console.log('✅ Nouvelle identité Tor confirmée');
+      return true;
+
+    } catch (error) {
+      console.error(`❌ Échec tentative ${attempt}:`, error.message);
+      
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_ATTEMPTS));
+      }
+    }
+  }
+  
+  console.error('🚨 Échec critique de rotation Tor après plusieurs tentatives');
+  return false;
+}
+
+// Exemple de fonction de vérification (optionnelle)
+async function verifyNewIP() {
   try {
-    // Envoie un signal SIGHUP à Tor pour demander un nouveau circuit
-    const { exec } = require('child_process');
-    await new Promise((resolve, reject) => {
-      exec('pkill -HUP tor', (error) => {
-        if (error) {
-          console.error('❌ Erreur rotation Tor:', error);
-          reject(false);
-        } else {
-          console.log('🔄 Nouvelle identité Tor demandée');
-          // Attendre que le nouveau circuit soit établi
-          setTimeout(resolve, 5000);
-        }
-      });
-    });
-    return true;
+    const { stdout } = await execAsync('curl --socks5-hostname localhost:9050 ifconfig.me');
+    console.log(`📡 Nouvelle IP Tor: ${stdout.trim()}`);
   } catch (e) {
-    console.error('❌ Erreur rotation Tor:', e);
-    return false;
+    console.warn('⚠️ Impossible de vérifier l\'IP (curl manquant?)');
   }
 }
 
-// 🌐 Vérification connexion Tor
+
+
+// Vérification connexion Tor
 async function verifyTorConnection(page) {
   try {
     await page.goto('https://check.torproject.org', {waitUntil: 'networkidle2', timeout: 30000});
@@ -141,44 +172,69 @@ async function humanLikeInteraction(page) {
 }
 
 // 🏠 Visite humaine d'une URL
-async function humanVisit(page, url) {
-  console.log(`🌍 Visite de ${url}...`);
-  await toggleNetworkSlow(page, Math.random() > 0.7);
-  await page.goto(url, {
-    waitUntil: 'networkidle2',
-    timeout: 30000,
-    referer: 'https://www.google.com/'
-  });
+async function humanVisit(page, url, maxAttempts = 2) {
+  console.log(`🌍 Tentative de visite de ${url}...`);
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await toggleNetworkSlow(page, Math.random() > 0.7);
+      
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded', // Plus tolérant que networkidle2
+        timeout: 15000, // Réduit le timeout initial
+        referer: 'https://www.google.com/'
+      }).catch(() => {}); // On ignore les erreurs de timeout
 
-  await humanLikeInteraction(page);
-  await handleCookies(page);
-  await new Promise(resolve => setTimeout(resolve, 2000 + Math.floor(Math.random() * 3000)));
-  await toggleNetworkSlow(page, false);
+      // Vérification si la page a bien chargé
+      const isPageLoaded = await page.evaluate(() => document.readyState === 'complete');
+      if (!isPageLoaded && attempt < maxAttempts) {
+        console.log(`⚠️ Chargement partiel, nouvelle tentative (${attempt}/${maxAttempts})`);
+        continue;
+      }
+
+      await humanLikeInteraction(page);
+      await handleCookies(page);
+      await new Promise(resolve => setTimeout(resolve, 2000 + Math.floor(Math.random() * 3000)));
+      await toggleNetworkSlow(page, false);
+      
+      return; // Sortie si tout s'est bien passé
+      
+    } catch (e) {
+      console.log(`⚠️ Erreur lors de la visite (tentative ${attempt}/${maxAttempts}):`, e.message);
+      if (attempt === maxAttempts) {
+        console.log(`❌ Abandon de la visite de ${url}`);
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Attente avant réessai
+    }
+  }
 }
 
 //   Gestion des bannières cookies
 async function handleCookies(page) {
   try {
-    const found = await page.evaluate(() => {
-      const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
-      const keywords = ['accepter', 'autoriser', 'cookies', 'ok', 'accept all', 'continuer', 'agree', 'allow'];
-
-      for (const btn of buttons) {
-        const text = (btn.innerText || btn.textContent || '').toLowerCase();
-        if (keywords.some(k => text.includes(k)) && btn.offsetParent !== null) {
-          btn.click();
-          return true;
+    const found = await Promise.race([
+      page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+        const keywords = ['accepter', 'autoriser', 'cookies', 'ok', 'accept all', 'continuer', 'agree'];
+        for (const btn of buttons) {
+          const text = (btn.innerText || btn.textContent || '').toLowerCase();
+          if (keywords.some(k => text.includes(k)) && btn.offsetParent !== null) {
+            btn.click();
+            return true;
+          }
         }
-      }
-      return false;
-    });
+        return false;
+      }),
+      new Promise(resolve => setTimeout(() => resolve(false), 3000)) // Timeout après 3s
+    ]);
 
     if (found) {
       console.log('🍪 Bouton cookies accepté');
-      await new Promise(resolve => setTimeout(resolve, 1000 + Math.floor(Math.random() * 1000)));
+      await new Promise(resolve => setTimeout(resolve, 500 + Math.floor(Math.random() * 1000)));
     }
   } catch (e) {
-    console.log('⚠️ Erreur gestion cookies:', e.message);
+    console.log('⚠️ Erreur gestion cookies (non critique):', e.message);
   }
 }
 
@@ -233,31 +289,50 @@ async function applyStealth(page) {
 async function handleCaptcha(page) {
   console.log('🔄 Tentative de contournement du CAPTCHA...');
   
-  // 1. Changement d'identité Tor
-  await renewTorIdentity();
-  
-  // 2. Fermeture et réouverture du navigateur
-  await page.close();
-  const newPage = await browser.newPage();
-  await applyStealth(newPage);
-  
-  // 3. Attente prolongée
-  await new Promise(resolve => setTimeout(resolve, 10000 + Math.floor(Math.random() *15000)));
+  try {
+    // 1. Changement d'identité Tor (avec timeout)
+    await Promise.race([
+      renewTorIdentity(),
+      new Promise(resolve => setTimeout(resolve, 10000)) // Timeout après 10s
+    ]);
 
-  // 4. Visites de pages intermédiaires
-  const decoyPages = [
-    'https://www.wikipedia.org',
-    'https://www.reddit.com',
-    'https://www.bbc.com',
-    'https://www.amazon.fr',
-    'https://www.youtube.com'
-  ];
-  
-  for (const url of decoyPages.slice(0, 2 + Math.floor(Math.random() * 2))) {
-    await humanVisit(newPage, url);
+    // 2. Fermeture et réouverture du navigateur
+    try {
+      await page.close();
+    } catch (e) {
+      console.log('⚠️ Erreur lors de la fermeture de la page:', e.message);
+    }
+    
+    const newPage = await browser.newPage();
+    await applyStealth(newPage);
+
+    // 3. Attente avec timeout
+    await new Promise(resolve => setTimeout(resolve, 5000 + Math.floor(Math.random() * 10000)));
+
+    // 4. Visites de pages intermédiaires (version sécurisée)
+    const decoyPages = [
+      'https://www.wikipedia.org',
+      'https://www.reddit.com',
+      'https://www.bbc.com',
+      'https://www.amazon.fr',
+      'https://www.youtube.com'
+    ];
+    
+    const pagesToVisit = decoyPages
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 2 + Math.floor(Math.random() * 2));
+
+    for (const url of pagesToVisit) {
+      await humanVisit(newPage, url).catch(() => {});
+      // On continue même si une visite échoue
+    }
+
+    return newPage;
+    
+  } catch (e) {
+    console.log('⚠️ Erreur critique dans handleCaptcha:', e.message);
+    return page; // On retourne la page originale en cas d'échec
   }
-  
-  return newPage;
 }
 
 // ==============================================
