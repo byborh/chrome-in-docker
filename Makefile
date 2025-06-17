@@ -7,6 +7,7 @@ build:
 run:
 	@echo "🚀 Running container with volumes..."
 	@docker run -it --rm \
+		-p 9050:9050 \
 		-v $(CURDIR)/src:/app/${IMAGE_NAME}/src \
 		-v $(CURDIR)/chrome-profile:/app/chrome-profile \
 		--name ${IMAGE_NAME} \

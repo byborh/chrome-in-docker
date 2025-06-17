@@ -1,9 +1,8 @@
-import dotenv from 'dotenv';
-dotenv.config();
+import 'dotenv/config';
 
 import { launch } from './utils/browser.js';
 import { networkToggle } from './utils/network.js';
-import { humanVisit } from './core/human.js';
+import { humanVisit } from './src/core/human.js';
 import { verifyTorConnection } from './core/tor.js';
 import { handleCaptchaAndRetry } from './core/captcha.js';
 import { extractData } from './core/extract.js';
