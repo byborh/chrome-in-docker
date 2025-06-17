@@ -23,10 +23,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     npm install -g yarn
 
 # 🧅 Configurer Tor
+# 🧅 Configurer Tor
 RUN echo "SOCKSPort 9050" >> /etc/tor/torrc && \
-    echo "Log notice stdout" >> /etc/tor/torrx && \
-    echo "ControlPort 9051" >> /etc/tir/torrc && \
-    echo "CookieAuthentification 1" >> /etc/tor/torrc
+    echo "Log notice stdout" >> /etc/tor/torrc && \
+    echo "ControlPort 9051" >> /etc/tor/torrc && \
+    echo "CookieAuthentication 1" >> /etc/tor/torrc
 
 # Répertoire de travail
 WORKDIR /app/leboncoin
@@ -36,4 +37,4 @@ COPY ./package.json ./package.json
 RUN yarn
 
 # Le code sera monté au runtime
-CMD ["sh", "-c", "service tor start && sleep 5 yarn dev"]
+CMD ["sh", "-c", "service tor start && sleep 5 && yarn dev"]

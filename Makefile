@@ -7,7 +7,7 @@ build:
 run:
 	@echo "🚀 Running container with volumes..."
 	@docker run -it --rm \
-		-v $(CURDIR)/src:/app/leboncoin/src \
+		-v $(CURDIR)/src:/app/${IMAGE_NAME}/src \
 		-v $(CURDIR)/chrome-profile:/app/chrome-profile \
 		--name ${IMAGE_NAME} \
 		${IMAGE_NAME}
