@@ -40,4 +40,4 @@ COPY ./package.json ./package.json
 RUN yarn
 
 # Le code sera monté au runtime
-CMD ["sh", "-c", "tor & sleep 20 && yarn 04-test-puppeteer-stealth-no-tor"]
+CMD ["sh", "-c", "tor & sleep 20 && yarn dev"]

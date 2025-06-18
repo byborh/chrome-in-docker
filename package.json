@@ -5,10 +5,10 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "node src/app.js",
-    "01-test-tor-http-request": "node src/01-test-tor-http-request.js",
-    "02-test-puppeteer-with-tor": "node src/02-test-puppeteer-with-tor.js",
-    "03-test-puppeteer-stealth-with-tor": "node src/03-test-puppeteer-stealth-with-tor.js",
-    "04-test-puppeteer-stealth-no-tor": "node src/04-test-puppeteer-stealth-no-tor.js"
+    "01-test-tor-http-request": "node src/tests/01-test-tor-http-request.js",
+    "02-test-puppeteer-with-tor": "node src/tests/02-test-puppeteer-with-tor.js",
+    "03-test-puppeteer-stealth-with-tor": "node src/tests/03-test-puppeteer-stealth-with-tor.js",
+    "04-test-puppeteer-stealth-no-tor": "node src/tests/04-test-puppeteer-stealth-no-tor.js"
   },
   "type": "module",
   "dependencies": {
