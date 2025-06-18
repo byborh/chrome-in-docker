@@ -4,15 +4,21 @@
   "description": "Scraping Leboncoin avec Puppeteer et Chrome dans Docker",
   "main": "src/index.js",
   "scripts": {
-    "dev": "node src/app.js"
+    "dev": "node src/app.js",
+    "01-test-tor-http-request": "node src/01-test-tor-http-request.js",
+    "02-test-puppeteer-with-tor": "node src/02-test-puppeteer-with-tor.js",
+    "03-test-puppeteer-stealth-with-tor": "node src/03-test-puppeteer-stealth-with-tor.js",
+    "04-test-puppeteer-stealth-no-tor": "node src/04-test-puppeteer-stealth-no-tor.js"
   },
   "type": "module",
   "dependencies": {
     "dotenv": "^16.5.0",
+    "got": "11.8.5",
+    "puppeteer": "^24.10.2",
     "puppeteer-core": "^24.10.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "socks-proxy-agent": "^8.0.5",
     "tor-request": "^3.1.0"
   }
 }
-

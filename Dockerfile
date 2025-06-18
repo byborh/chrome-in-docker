@@ -18,7 +18,7 @@ RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.d
     apt-get clean && rm -rf /var/lib/apt/lists/* google-chrome*.deb
 
 # 🧠 Installer Node.js + Yarn
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     npm install -g yarn
 
@@ -40,4 +40,4 @@ COPY ./package.json ./package.json
 RUN yarn
 
 # Le code sera monté au runtime
-CMD ["sh", "-c", "tor & sleep 15 && yarn dev"]
+CMD ["sh", "-c", "tor & sleep 20 && yarn 04-test-puppeteer-stealth-no-tor"]
