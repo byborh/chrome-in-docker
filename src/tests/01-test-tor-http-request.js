@@ -15,9 +15,15 @@ import { SocksProxyAgent } from 'socks-proxy-agent';
 async function testTorHttpRequest() {
   try {
     const agent = new SocksProxyAgent('socks5h://127.0.0.1:9050');
+    const res = await got('https://ipinfo.io/json', { agent: { https: agent } });
+    console.log('IP Info from ipinfo:', res.body);
+
+    //const res2 = await got('https://check.torproject.org/', {agent:{https:agent}});
+    //console.log('IP Info from torproject:', res2.body);
+
     const response = await got('https://www.leboncoin.fr/', {
       agent: { http: agent, https: agent },
-      timeout: 10000,
+      timeout: 30000,
     });
 
     console.log('✅ Tor HTTP Request success, status:', response.statusCode);
