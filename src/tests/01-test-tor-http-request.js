@@ -1,37 +1,62 @@
-/*
-🧪 Test 1 : Requête HTTP simple via TOR sans navigateur
--------------------------------------------------------
-Ce script envoie une requête GET vers Leboncoin.fr en utilisant TOR via `got`
-et le proxy SOCKS5. Il permet de vérifier si l’IP TOR est bloquée au niveau réseau
-(avant même l'utilisation de Puppeteer).
-
-Si ce script fonctionne et retourne du HTML, cela signifie que TOR est accepté
-au niveau réseau et que le blocage ne se fait pas ici.
-*/
-
 import got from 'got';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import net from 'net';
 
-async function testTorHttpRequest() {
-  try {
-    const agent = new SocksProxyAgent('socks5h://127.0.0.1:9050');
-    const res = await got('https://ipinfo.io/json', { agent: { https: agent } });
-    console.log('IP Info from ipinfo:', res.body);
+const TOR_CONTROL_PORT = 9051;
+const SOCKS_PORT = 9052;
+const MAX_ATTEMPTS = 10;
+const TOR_PASSWORD = ''; // pas de password si CookieAuthentication
 
-    //const res2 = await got('https://check.torproject.org/', {agent:{https:agent}});
-    //console.log('IP Info from torproject:', res2.body);
-
-    const response = await got('https://www.leboncoin.fr/', {
-      agent: { http: agent, https: agent },
-      timeout: 30000,
+async function sendTorNewnym() {
+  return new Promise((resolve) => {
+    const socket = net.connect(TOR_CONTROL_PORT, '127.0.0.1', () => {
+      socket.write('AUTHENTICATE ""\r\n');
     });
 
-    console.log('✅ Tor HTTP Request success, status:', response.statusCode);
-    console.log(response.body.slice(0, 500)); // aperçu du contenu HTML
-  } catch (err) {
-    console.error('❌ Tor HTTP Request failed:', err.message);
+    socket.on('data', (data) => {
+      if (data.toString().startsWith('250')) {
+        socket.write('SIGNAL NEWNYM\r\n');
+      } else if (data.toString().includes('250 OK')) {
+        socket.end();
+        resolve();
+      }
+    });
+  });
+}
+
+async function tryOnce(i) {
+  console.log(`🔁 Tentative ${i + 1} : changement d'IP Tor...`);
+  await sendTorNewnym();
+  await new Promise((r) => setTimeout(r, 5000)); // attendre stabilisation
+
+  const agent = new SocksProxyAgent(`socks5h://127.0.0.1:${SOCKS_PORT}`);
+  try {
+    const ipinfo = await got('https://ipinfo.io/json', { agent: { https: agent } });
+    const info = JSON.parse(ipinfo.body);
+    console.log(`🌍 Nouvelle IP : ${info.ip} (${info.country})`);
+
+    if (!['FR', 'BE'].includes(info.country)) {
+      console.warn('❌ IP non FR/BE, on saute');
+      return false;
+    }
+
+    const res = await got('https://www.leboncoin.fr/', {
+      agent: { https: agent },
+      timeout: 15000,
+    });
+
+    console.log('✅ Leboncoin réponse OK:', res.statusCode);
+    return true;
+  } catch (e) {
+    console.error('❌ Erreur:', e.message);
+    return false;
   }
 }
 
-testTorHttpRequest();
+(async () => {
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const ok = await tryOnce(i);
+    if (ok) break;
+  }
+})();
 

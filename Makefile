@@ -1,29 +1,22 @@
-IMAGE_NAME=leboncoin
+IMAGE_NAME := leboncoin
+TOR_VOLUME := tor-data
+
+.PHONY: build run logs clean prune-volumes
 
 build:
-	@echo "🔧 Building Docker image..."
-	@docker build --progress=plain -t ${IMAGE_NAME} .
+	docker build -t $(IMAGE_NAME) .
 
-run:
-	@echo "🚀 Running container with volumes..."
-	@docker run -it --rm \
-		-p 9050:9050 \
-		-v $(CURDIR)/src:/app/${IMAGE_NAME}/src \
-		-v $(CURDIR)/chrome-profile:/app/chrome-profile \
-		--name ${IMAGE_NAME} \
-		${IMAGE_NAME}
+run: build
+	docker run --rm \
+		--name $(IMAGE_NAME) \
+		$(IMAGE_NAME)
+
+logs:
+	docker logs -f $(IMAGE_NAME)
 
 clean:
-	@echo "🧹 Cleaning Docker containers..."
-	@docker container stop ${IMAGE_NAME} || true
-	@docker container rm ${IMAGE_NAME} || true
+	docker rm -f $(IMAGE_NAME) || true
 
-rebuild: clean build
+prune-volumes:
+	docker volume prune -f
 
-dev: build run
-
-delete-files:
-	rm ./src/index.html || true
-	rm ./src/error.log || true
-	rm ./src/error_page.html || true
-	rm ./src/data.json || true
